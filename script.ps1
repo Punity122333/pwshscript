@@ -1,91 +1,30 @@
-#Requires -RunAsAdministrator
+# PowerShell script to allow specific websites via Windows Defender Firewall
 
-# Define allowed websites and DNS server
-$allowedWebsites = @(
-    "vjudge.net",
-    "programiz.com",
-    "cppreference.com"
-)
-$dnsServer = "172.16.120.1"
-
-# Remove existing rules if they exist to avoid duplicates
-$ruleNames = @(
-    "Allow Specific Websites - HTTP",
-    "Allow Specific Websites - HTTPS",
-    "Allow DNS Server",
-    "Block HTTP Outbound",
-    "Block HTTPS Outbound"
+# Define all IPs to allow (from nslookup results)
+$allowedIPs = @(
+    # cppreference.com
+    "208.80.6.137", "2604:4f00::3:0:1238:1",
+    
+    # programiz.com
+    "104.21.42.88", "172.67.204.38",
+    "2606:4700:3035::ac43:cc26", "2606:4700:3033::6815:2a58",
+    
+    # vjudge.net
+    "172.67.157.148", "104.21.40.232",
+    "2606:4700:3036::ac43:9d94", "2606:4700:3031::6815:28e8"
 )
 
-foreach ($name in $ruleNames) {
-    if (Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue) {
-        Remove-NetFirewallRule -DisplayName $name -Confirm:$false
-    }
+# Create a rule for each IP (IPv4 and IPv6)
+foreach ($ip in $allowedIPs) {
+    $ruleName = "Allow Website IP - $ip"
+    New-NetFirewallRule -DisplayName $ruleName `
+                        -Direction Outbound `
+                        -Action Allow `
+                        -RemoteAddress $ip `
+                        -Protocol Any `
+                        -Profile Any `
+                        -Description "Allow traffic to $ip (known good site)" `
+                        -Group "Custom Allow Rules"
 }
 
-# Create allow rules for each website (HTTP and HTTPS)
-foreach ($site in $allowedWebsites) {
-    # HTTP Allow Rule
-    New-NetFirewallRule -DisplayName "Allow Specific Websites - HTTP" `
-        -Direction Outbound `
-        -RemoteAddress $site `
-        -RemotePort 80 `
-        -Protocol TCP `
-        -Action Allow `
-        -Enabled True `
-        -Profile Any `
-        -Group "Allowed Websites"
-
-    # HTTPS Allow Rule
-    New-NetFirewallRule -DisplayName "Allow Specific Websites - HTTPS" `
-        -Direction Outbound `
-        -RemoteAddress $site `
-        -RemotePort 443 `
-        -Protocol TCP `
-        -Action Allow `
-        -Enabled True `
-        -Profile Any `
-        -Group "Allowed Websites"
-}
-
-# Create allow rules for DNS server (TCP and UDP)
-New-NetFirewallRule -DisplayName "Allow DNS Server" `
-    -Direction Outbound `
-    -RemoteAddress $dnsServer `
-    -RemotePort 53 `
-    -Protocol UDP `
-    -Action Allow `
-    -Enabled True `
-    -Profile Any
-
-New-NetFirewallRule -DisplayName "Allow DNS Server" `
-    -Direction Outbound `
-    -RemoteAddress $dnsServer `
-    -RemotePort 53 `
-    -Protocol TCP `
-    -Action Allow `
-    -Enabled True `
-    -Profile Any
-
-# Create block rules for HTTP and HTTPS
-New-NetFirewallRule -DisplayName "Block HTTP Outbound" `
-    -Direction Outbound `
-    -RemotePort 80 `
-    -Protocol TCP `
-    -Action Block `
-    -Enabled True `
-    -Profile Any `
-    -Priority 100
-
-New-NetFirewallRule -DisplayName "Block HTTPS Outbound" `
-    -Direction Outbound `
-    -RemotePort 443 `
-    -Protocol TCP `
-    -Action Block `
-    -Enabled True `
-    -Profile Any `
-    -Priority 100
-
-Write-Host "Firewall configuration completed successfully." -ForegroundColor Green
-Write-Host "Allowed websites: $($allowedWebsites -join ', ')" 
-Write-Host "Allowed DNS server: $dnsServer"
+Write-Host "✅ Firewall allow rules created for cppreference, programiz, and vjudge."
