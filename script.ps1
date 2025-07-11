@@ -4,7 +4,7 @@
 Restricts outbound traffic to only specified websites and essential services
 .DESCRIPTION
 Creates Windows Firewall rules to:
-1. Allow DNS (UDP 53) for name resolution
+1. Allow DNS (UDP 53) ONLY to specified DNS server (172.16.120.1)
 2. Allow HTTP/HTTPS to specified domains
 3. Block all other outbound traffic
 .NOTES
@@ -20,12 +20,15 @@ $allowedDomains = @(
     "cppreference.com"
 )
 
+# Custom DNS server IP
+$dnsServer = "172.16.120.1"
+
 # Rule name prefix for easy management
 $rulePrefix = "RestrictedAccess_"
 
 function Update-FirewallRules {
     # Remove existing rules if they exist
-    Get-NetFirewallRule -DisplayName "$rulePrefix*" 2>$null | Remove-NetFirewallRule -Confirm:$false
+    Get-NetFirewallRule -DisplayName "$rulePrefix*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -Confirm:$false
 
     # Allow critical Windows services (ICMP, DHCP, NTP)
     New-NetFirewallRule -DisplayName "${rulePrefix}ICMPv4" -Direction Outbound `
@@ -37,9 +40,9 @@ function Update-FirewallRules {
     New-NetFirewallRule -DisplayName "${rulePrefix}NTP" -Direction Outbound `
         -Protocol UDP -RemotePort 123 -Action Allow
 
-    # Allow DNS (UDP 53)
+    # Allow DNS ONLY to specified DNS server (UDP 53)
     New-NetFirewallRule -DisplayName "${rulePrefix}DNS" -Direction Outbound `
-        -Protocol UDP -RemotePort 53 -Action Allow
+        -Protocol UDP -RemotePort 53 -RemoteAddress $dnsServer -Action Allow
 
     # Create rules for each domain
     foreach ($domain in $allowedDomains) {
@@ -72,5 +75,6 @@ Update-FirewallRules
 
 Write-Host "Firewall configured successfully!" -ForegroundColor Green
 Write-Host "Allowed domains: $($allowedDomains -join ', ')"
+Write-Host "Allowed DNS server: $dnsServer" -ForegroundColor Cyan
 Write-Warning "Outbound traffic is now restricted to only these websites and essential services"
 Write-Host "To revert: Get-NetFirewallRule -DisplayName '${rulePrefix}*' | Remove-NetFirewallRule" -ForegroundColor Yellow
